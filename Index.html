@@ -1,0 +1,411 @@
+<!--
+Project: The Adventures of Jimmy the Frenchie
+Files included below: index.html (single-file app) and sample routes.json + README instructions.
+
+Instructions: Copy the contents of index.html into a file named index.html. Create a GitHub repo (or follow README) and host on GitHub Pages. The app can optionally save routes to your GitHub repo using a personal access token stored in localStorage (explained in README). If you prefer, you can manually edit routes.json in the repo.
+--><!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>The Adventures of Jimmy the Frenchie</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    /* Playful & cartoonish styling */
+    :root{
+      --accent:#ff6b6b;
+      --accent-2:#ffd166;
+      --bg:#fff8f0;
+      --card:#ffffffcc;
+      --muted:#6b7280;
+    }
+    html,body,#map{height:100%;margin:0}
+    body{
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(180deg,#fff8f0 0%, #f0f9ff 100%);
+      color:#222;
+    }
+    .topbar{
+      position:fixed;left:16px;top:16px;z-index:1000;padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.08);background:var(--card);
+      display:flex;gap:12px;align-items:center;
+      width:380px;max-width:calc(100% - 48px);
+    }
+    .logo{display:flex;align-items:center;gap:10px}
+    .title{font-weight:700;font-size:18px}
+    .subtitle{font-size:12px;color:var(--muted)}
+    .controls{display:flex;flex-direction:column;gap:8px;margin-left:auto}
+    .btn{border:none;padding:8px 10px;border-radius:10px;cursor:pointer;font-weight:600}
+    .btn-primary{background:linear-gradient(90deg,var(--accent),#ff8aac);color:white}
+    .btn-ghost{background:transparent;border:1px dashed #ffdede}.panel{
+  position:fixed;right:16px;top:16px;z-index:1000;width:360px;max-width:calc(100% - 48px);background:var(--card);padding:12px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.08);
+  font-size:14px
+}
+.panel h3{margin:6px 0 8px 0}
+label{display:block;font-size:12px;color:var(--muted);margin-top:6px}
+input[type=text], input[type=date], textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #eee;margin-top:6px;font-size:14px}
+textarea{resize:vertical}
+.routes-list{max-height:360px;overflow:auto;margin-top:8px}
+.route-item{padding:8px;border-radius:8px;background:linear-gradient(90deg,#fff,#fff0);margin-bottom:6px;border:1px solid #fff2}
+.color-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.small{font-size:12px;color:var(--muted)}
+
+/* footer legend */
+.legend{position:fixed;left:16px;bottom:16px;z-index:1000;padding:10px;border-radius:12px;background:var(--card);box-shadow:0 8px 22px rgba(0,0,0,0.06)}
+
+/* Mobile tweaks */
+@media (max-width:800px){
+  .topbar{width:auto;left:8px;right:8px}
+  .panel{right:8px;left:8px;top:auto;bottom:16px}
+}
+
+  </style>
+</head>
+<body>
+  <div id="map"></div>  <div class="topbar">
+    <div class="logo">
+      <!-- Tiny SVG mascot icon -->
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+        <rect rx="10" width="64" height="64" fill="#fff" />
+        <g transform="translate(6,8)">
+          <ellipse cx="26" cy="30" rx="16" ry="12" fill="#ffe9e0" stroke="#ffb2a8" />
+          <circle cx="18" cy="20" r="4" fill="#2b2b2b"/>
+          <circle cx="34" cy="20" r="4" fill="#2b2b2b"/>
+          <path d="M16 8 C 10 6, 8 2, 10 0 C 12 -2, 18 1, 20 4" fill="#ffc2b2" transform="translate(0,0)"/>
+          <path d="M36 8 C 42 6, 44 2, 42 0 C 40 -2, 34 1, 32 4" fill="#ffc2b2" transform="translate(0,0)"/>
+          <path d="M22 28 C 26 32, 30 32, 36 28" stroke="#ff8a7a" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <div class="title">The Adventures of Jimmy the Frenchie</div>
+      <div class="subtitle">Add routes, watch them animate — Jimmy's travel diary</div>
+    </div>
+    <div class="controls">
+      <button id="toggleForm" class="btn btn-primary">Add New Route</button>
+    </div>
+  </div>  <div class="panel" id="formPanel" style="display:none">
+    <h3>Add a New Adventure 🐾</h3>
+    <label>Date</label>
+    <input type="date" id="routeDate" />
+    <label>From (city, address or place)</label>
+    <input type="text" id="fromInput" placeholder="e.g., London" />
+    <label>To (city, address or place)</label>
+    <input type="text" id="toInput" placeholder="e.g., Paris" />
+    <label>Notes</label>
+    <textarea id="notesInput" rows="2" placeholder="Short notes about this trip"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="addRouteBtn" class="btn btn-primary">Save & Animate</button>
+      <button id="clearBtn" class="btn btn-ghost">Clear</button>
+    </div>
+    <hr />
+    <div class="small">Publication / Storage</div>
+    <div class="small">To permanently save routes online you can host the project on GitHub Pages. Provide your GitHub repo owner/name and a personal access token in Settings → Storage. Tokens are only stored in your browser localStorage and used to update <code>routes.json</code> in your repo.</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input type="text" id="githubRepo" placeholder="username/repo (optional)" />
+      <input type="text" id="githubBranch" placeholder="branch (default: main)" style="width:110px" />
+    </div>
+    <label>GitHub Token (optional)</label>
+    <input type="text" id="githubToken" placeholder="Paste PAT here (will be stored locally)" />
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="saveSettings" class="btn">Save Settings</button>
+      <button id="logoutToken" class="btn btn-ghost">Clear Token</button>
+    </div>
+    <hr />
+    <h4>Travel History</h4>
+    <div id="routesList" class="routes-list"></div>
+  </div>  <div class="legend">
+    <div style="font-weight:700;margin-bottom:6px">Legend</div>
+    <div class="small">Animated lines = routes. Click a route to view details.</div>
+  </div>  <!-- Leaflet -->  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>  <script>
+  // ========== Configuration ==========
+  const CONFIG = {
+    repoFilePath: 'routes.json', // file in repo
+    defaultRepoBranch: 'main',
+    geocodeEndpoint: 'https://nominatim.openstreetmap.org/search',
+    userAgent: 'JimmyTheFrenchieMap/1.0 (your-email@example.com)'
+  }
+
+  // ========== Utility functions ==========
+  function $(s){return document.querySelector(s)}
+  function el(tag, cls){const e=document.createElement(tag); if(cls)e.className=cls; return e}
+
+  // Color palette (vibrant)
+  const COLORS = ['#ff6b6b','#ffd166','#6bf178','#6bd3ff','#b86bff','#ff9ec3']
+  function pickColor(i){return COLORS[i % COLORS.length]}
+
+  // Simple base64 SVG for Jimmy marker (cartoon Frenchie head)
+  const JIMMY_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(`
+  <svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'>
+    <g>
+      <ellipse cx='32' cy='36' rx='18' ry='12' fill='%23ffe9e0' stroke='%23ffb2a8'/>
+      <circle cx='24' cy='28' r='4' fill='%232b2b2b'/>
+      <circle cx='40' cy='28' r='4' fill='%232b2b2b'/>
+      <path d='M20 16 C 16 12, 12 8, 16 6 C 20 4, 24 10, 26 14' fill='%23ffc2b2' />
+      <path d='M44 16 C 48 12, 52 8, 48 6 C 44 4, 40 10, 38 14' fill='%23ffc2b2' />
+      <path d='M26 36 C 30 40, 34 40, 38 36' stroke='%23ff8a7a' stroke-width='2' fill='none' stroke-linecap='round' />
+    </g>
+  </svg>`)};;
+
+  // ========== Map setup ==========
+  const map = L.map('map', {zoomControl:true}).setView([48.8566,2.3522], 4);
+
+  // playful tile layer (Carto Voyager or Stamen Toner? Use Carto's Positron courtesy)
+  const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors & Carto',
+    maxZoom: 19
+  }).addTo(map);
+
+  const routesLayer = L.layerGroup().addTo(map);
+  const markersLayer = L.layerGroup().addTo(map);
+
+  // Animated vehicles currently on map
+  const animVehicles = [];
+
+  // ========== Data handling ==========
+  let ROUTES = []; // in-memory routes
+
+  // Try to load settings from localStorage
+  function loadSettings(){
+    const repo = localStorage.getItem('jtg_repo');
+    const branch = localStorage.getItem('jtg_branch') || CONFIG.defaultRepoBranch;
+    const token = localStorage.getItem('jtg_token');
+    if(repo) $('#githubRepo').value = repo;
+    $('#githubBranch').value = branch;
+    if(token) $('#githubToken').value = token;
+  }
+  loadSettings();
+
+  // Fetch routes.json from GitHub Pages (if hosting) or from same origin
+  async function fetchRoutesRaw(){
+    // If user has provided repo, try to fetch raw content from GitHub raw URL
+    const repo = $('#githubRepo').value.trim();
+    const branch = $('#githubBranch').value.trim() || CONFIG.defaultRepoBranch;
+    if(repo){
+      const rawUrl = `https://raw.githubusercontent.com/${repo}/${branch}/${CONFIG.repoFilePath}`;
+      try{
+        const r = await fetch(rawUrl);
+        if(!r.ok) throw new Error('no raw file');
+        const data = await r.json();
+        return data;
+      }catch(e){
+        console.warn('Could not fetch from repo, falling back to local sample', e);
+      }
+    }
+    // fallback sample
+    return SAMPLE_ROUTES();
+  }
+
+  // Save routes to GitHub using REST API (requires PAT)
+  async function saveRoutesToGitHub(){
+    const repo = $('#githubRepo').value.trim();
+    const branch = $('#githubBranch').value.trim() || CONFIG.defaultRepoBranch;
+    const token = $('#githubToken').value.trim();
+    if(!repo || !token) return {ok:false, message:'Missing repo or token'};
+
+    const owner = repo.split('/')[0];
+    const repoName = repo.split('/')[1];
+    // 1) get the SHA of existing file (if any)
+    const apiBase = `https://api.github.com/repos/${owner}/${repoName}/contents/${CONFIG.repoFilePath}`;
+    try{
+      const getRes = await fetch(apiBase + `?ref=${branch}`, {headers:{Authorization:'token '+token}});
+      let sha = null;
+      if(getRes.status === 200){
+        const getJson = await getRes.json(); sha = getJson.sha;
+      }
+      const putBody = {
+        message: `Update routes.json via Jimmy map`,
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(ROUTES, null, 2)))),
+        branch: branch
+      };
+      if(sha) putBody.sha = sha;
+      const putRes = await fetch(apiBase, {method:'PUT', headers:{Authorization:'token '+token,'Content-Type':'application/json'}, body:JSON.stringify(putBody)});
+      const putJson = await putRes.json();
+      if(putRes.ok) return {ok:true, json:putJson};
+      else return {ok:false, message:JSON.stringify(putJson)};
+    }catch(e){
+      console.error(e); return {ok:false, message:e.message}
+    }
+  }
+
+  // ========== Geocoding ==========
+  async function geocodePlace(q){
+    // check cache in localStorage
+    const cacheKey = 'geocache_'+q.toLowerCase();
+    const cached = localStorage.getItem(cacheKey);
+    if(cached) return JSON.parse(cached);
+    const params = new URLSearchParams({q, format:'json', limit:1});
+    const url = CONFIG.geocodeEndpoint + '?' + params.toString();
+    const r = await fetch(url, {headers:{'User-Agent':CONFIG.userAgent}});
+    const j = await r.json();
+    if(j && j.length>0){
+      const obj = {lat:parseFloat(j[0].lat), lon:parseFloat(j[0].lon), display_name:j[0].display_name};
+      localStorage.setItem(cacheKey, JSON.stringify(obj));
+      return obj;
+    }
+    return null;
+  }
+
+  // ========== Map drawing ==========
+  function clearMap(){routesLayer.clearLayers(); markersLayer.clearLayers(); animVehicles.length=0}
+
+  function drawAllRoutes(){
+    clearMap();
+    ROUTES.forEach((r, idx) => {
+      if(!r.coords || r.coords.length<2) return;
+      const color = pickColor(idx);
+      const poly = L.polyline(r.coords, {color:color, weight:5, opacity:0.9, className:'route-poly'}).addTo(routesLayer);
+      poly.on('click', ()=> showRouteDetails(r));
+      // draw small static marker at origin
+      const icon = L.icon({iconUrl:JIMMY_SVG, iconSize:[38,38], iconAnchor:[19,38]});
+      L.marker(r.coords[0], {icon}).addTo(markersLayer);
+    });
+    refreshRoutesList();
+  }
+
+  // Animate latest route with moving Jimmy icon
+  function animateRoute(route){
+    if(!route.coords || route.coords.length<2) return;
+    const color = pickColor( Math.floor(Math.random()*100) );
+    const poly = L.polyline(route.coords, {color:color, weight:6, opacity:0.8}).addTo(routesLayer);
+    // create dashed animated travel effect by moving a marker along the path
+    const markerIcon = L.icon({iconUrl:JIMMY_SVG, iconSize:[44,44], iconAnchor:[22,44]});
+    const vehicle = L.marker(route.coords[0], {icon:markerIcon}).addTo(markersLayer);
+    animVehicles.push(vehicle);
+    // compute line distances and step interpolation
+    const latlngs = route.coords.map(c=>L.latLng(c[0],c[1]));
+    let segIndex=0; let t=0; const speed=0.008; // smaller => slower
+    function step(){
+      if(segIndex >= latlngs.length-1){
+        // done: leave final marker
+        vehicle.setLatLng(latlngs[latlngs.length-1]);
+        return;
+      }
+      const a = latlngs[segIndex]; const b = latlngs[segIndex+1];
+      const cur = L.latLng( a.lat + (b.lat - a.lat)*t, a.lng + (b.lng - a.lng)*t );
+      vehicle.setLatLng(cur);
+      t += speed;
+      if(t>=1){segIndex++; t=0}
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function showRouteDetails(r){
+    alert(`${r.date || 'Unknown date'}\nFrom: ${r.from}\nTo: ${r.to}\nNotes: ${r.notes || ''}`);
+  }
+
+  function refreshRoutesList(){
+    const list = $('#routesList'); list.innerHTML='';
+    ROUTES.slice().reverse().forEach((r, i)=>{
+      const item = el('div','route-item');
+      const idx = ROUTES.length - 1 - i;
+      const dot = el('span','color-dot'); dot.style.background = pickColor(idx);
+      const title = el('div'); title.innerHTML = `<strong>${r.from}</strong> → <strong>${r.to}</strong> <span class='small'>${r.date || ''}</span>`;
+      const notes = el('div','small'); notes.textContent = r.notes || '';
+      item.appendChild(dot); item.appendChild(title); item.appendChild(notes);
+      item.onclick = () => { map.fitBounds(L.polyline(r.coords).getBounds(), {padding:[40,40]}); showRouteDetails(r) };
+      list.appendChild(item);
+    });
+  }
+
+  // ========== UI wiring ==========
+  $('#toggleForm').addEventListener('click', ()=>{
+    const p = $('#formPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  });
+  $('#clearBtn').addEventListener('click', ()=>{ $('#fromInput').value=''; $('#toInput').value=''; $('#notesInput').value=''; $('#routeDate').value=''; });
+
+  $('#saveSettings').addEventListener('click', ()=>{
+    const repo = $('#githubRepo').value.trim(); const branch = $('#githubBranch').value.trim() || CONFIG.defaultRepoBranch; const token = $('#githubToken').value.trim();
+    if(repo) localStorage.setItem('jtg_repo', repo); localStorage.setItem('jtg_branch', branch);
+    if(token) localStorage.setItem('jtg_token', token);
+    alert('Settings saved locally. To persist routes to your GitHub repository, ensure your repo exists and you have a Personal Access Token with repo permissions.');
+  });
+  $('#logoutToken').addEventListener('click', ()=>{ localStorage.removeItem('jtg_token'); $('#githubToken').value=''; alert('Local token cleared.'); });
+
+  $('#addRouteBtn').addEventListener('click', async ()=>{
+    const from = $('#fromInput').value.trim(); const to = $('#toInput').value.trim(); const notes = $('#notesInput').value.trim(); const date = $('#routeDate').value;
+    if(!from || !to){alert('Please provide both From and To'); return}
+    // Geocode both
+    const g1 = await geocodePlace(from); if(!g1){alert('Could not find "'+from+'"'); return}
+    const g2 = await geocodePlace(to); if(!g2){alert('Could not find "'+to+'"'); return}
+    const newRoute = {id: Date.now(), date: date || new Date().toISOString().slice(0,10), from: from, to: to, notes: notes, coords:[[g1.lat,g1.lon],[g2.lat,g2.lon]]};
+    ROUTES.push(newRoute);
+    // animate
+    animateRoute(newRoute);
+    refreshRoutesList();
+    // try to persist
+    const res = await saveRoutesToGitHub();
+    if(res && res.ok){ alert('Route saved to GitHub!') } else {
+      if(res && res.message) console.warn(res.message);
+      alert('Route added locally. To save permanently online, add your GitHub repo and token in settings. You can also manually edit routes.json in your repository.');
+    }
+    // clear form
+    $('#fromInput').value=''; $('#toInput').value=''; $('#notesInput').value=''; $('#routeDate').value='';
+  });
+
+  // ========== Initialization ==========
+  // sample routes fallback
+  function SAMPLE_ROUTES(){
+    return [
+      {id:1,date:'2025-07-04',from:'Paris',to:'Lille',notes:'Weekend escape',coords:[[48.8566,2.3522],[50.62925,3.057256]]},
+      {id:2,date:'2025-08-12',from:'Lille',to:'Brussels',notes:'Cross-border adventure',coords:[[50.62925,3.057256],[50.85045,4.34878]]}
+    ];
+  }
+
+  (async function(){
+    ROUTES = await fetchRoutesRaw();
+    drawAllRoutes();
+  })();
+
+  </script></body>
+</html>
+---
+
+README (Quick Setup)
+
+1. Create a GitHub account (if you don't already have one): https://github.com/join
+
+
+2. Create a new public repository named e.g. adventures-of-jimmy.
+
+
+3. In that repository, add a file named routes.json with the following starter content (you can paste exactly this):
+
+
+
+[ { "id": 1, "date": "2025-07-04", "from": "Paris", "to": "Lille", "notes": "Weekend escape", "coords": [[48.8566,2.3522],[50.62925,3.057256]] } ]
+
+4. Upload the index.html file (copy the HTML from this document and save it as index.html) into the repo root.
+
+
+5. Enable GitHub Pages: In repo Settings → Pages → select branch main (or whichever branch) and root, then Save. Your site will go live at https://<your-username>.github.io/<repo-name>/ (wait a minute).
+
+
+6. Open the site URL. Use Add New Route to create trips. By default the app will try to fetch routes.json from the repo raw URL. To enable saving new routes from the webpage back into the repository, create a Personal Access Token (PAT):
+
+GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token.
+
+Give it repo scope (for public repo that's fine). Copy the token immediately.
+
+In the app (Add New Route panel), paste username/repo (e.g. yourname/adventures-of-jimmy), branch name, and paste token in the token box, then Save Settings.
+
+
+
+7. When you add a route via the app and your repo + token are set, the app will update routes.json in the repository so future visits show the saved history.
+
+
+
+Security note: The token is stored only in your browser localStorage. Do not paste tokens on public or shared devices. If you ever need to revoke access, delete the token from your GitHub settings and clear it in the app.
+
+Tips & Next steps:
+
+If you want a nicer hosted tile (paper, watercolor, or custom art), you can swap the tile URL to other providers (Stamen, Mapbox). Mapbox requires an access token.
+
+If you'd rather not use GitHub tokens in the browser, you can manually edit routes.json in the repository or use a simple server-side function (Netlify Functions, GitHub Actions) to accept form submissions.
+
+Want me to create the repo and set up GitHub Pages for you? I can provide step-by-step commands and copy-paste content to speed it up.
+
+
+Enjoy — and tell Jimmy I said hi! 🐶✨
+
